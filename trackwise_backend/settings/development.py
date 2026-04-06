@@ -11,7 +11,10 @@ DATABASES = {
 }
 
 DEBUG = True
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ["trackwise-msl5.onrender.com",
+    "localhost",
+    "127.0.0.1"
+]
 
 # Use SQLite for quick local dev (optional — use Postgres for real dev)
 # DATABASES['default']['ENGINE'] = 'django.db.backends.sqlite3'
