@@ -1,0 +1,35 @@
+[2026-04-05 19:49:33,683] INFO trackwise_backend [e7121ab0] GET /api/v1/dashboard/ → 200 (105ms) user=demo@trackwise.in
+[2026-04-05 19:49:33,691] INFO trackwise_backend [adcc02a1] GET /api/v1/expenses/summary/ → 200 (5ms) user=demo@trackwise.in
+[2026-04-05 19:49:33,697] INFO trackwise_backend [f11a8d1c] GET /api/v1/learning/summary/ → 200 (5ms) user=demo@trackwise.in
+[2026-04-05 19:49:33,700] INFO trackwise_backend [04dae759] GET /api/v1/learning/heatmap/ → 200 (1ms) user=demo@trackwise.in
+[2026-04-05 19:49:33,705] INFO trackwise_backend [9c72b203] GET /api/v1/goals/summary/ → 200 (3ms) user=demo@trackwise.in
+[2026-04-05 19:49:33,710] INFO trackwise_backend [752af0a2] GET /api/v1/savings/summary/ → 200 (4ms) user=demo@trackwise.in
+[2026-04-05 19:49:33,726] INFO trackwise_backend [e595bf90] GET /api/v1/dashboard/export/ → 200 (16ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,905] INFO trackwise_backend [e731611f] GET /api/v1/auth/me/ → 200 (101ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,917] INFO trackwise_backend [fc23f9c4] PATCH /api/v1/auth/profile/ → 200 (11ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,927] INFO trackwise_backend [e1abf926] GET /api/v1/expenses/ → 200 (8ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,938] INFO trackwise_backend [02d9b60e] POST /api/v1/expenses/ → 201 (10ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,945] INFO trackwise_backend [24995753] GET /api/v1/expenses/summary/ → 200 (6ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,951] INFO trackwise_backend [73fd7b42] GET /api/v1/learning/ → 200 (5ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,960] INFO trackwise_backend [58f45b9d] POST /api/v1/learning/ → 201 (8ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,967] INFO trackwise_backend [7ff8b794] GET /api/v1/learning/summary/ → 200 (5ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,969] INFO trackwise_backend [ead9a2f3] GET /api/v1/learning/heatmap/ → 200 (1ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,974] INFO trackwise_backend [2331979a] GET /api/v1/goals/ → 200 (4ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,983] INFO trackwise_backend [111bcea9] POST /api/v1/goals/ → 201 (8ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,987] INFO trackwise_backend [961aa05a] GET /api/v1/goals/summary/ → 200 (3ms) user=demo@trackwise.in
+[2026-04-06 06:31:51,993] INFO trackwise_backend [fa716d1f] GET /api/v1/savings/ → 200 (5ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,008] INFO trackwise_backend [14a203f7] POST /api/v1/savings/ → 201 (8ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,013] INFO trackwise_backend [650a2c67] GET /api/v1/savings/summary/ → 200 (5ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,022] INFO trackwise_backend [84a98255] GET /api/v1/dashboard/ → 200 (7ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,029] INFO trackwise_backend [d3f7c970] GET /api/v1/dashboard/alerts/ → 200 (6ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,045] INFO trackwise_backend [da33632f] GET /api/v1/dashboard/export/ → 200 (14ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,048] INFO trackwise_backend [5752efd2] GET /api/v1/subscriptions/ → 200 (2ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,059] INFO trackwise_backend [d9b4037b] POST /api/v1/expenses/bulk-create/ → 201 (10ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,073] INFO trackwise_backend [60040793] PATCH /api/v1/expenses/65211c71-632f-4c34-98f4-0f1469439e28/ → 200 (11ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,083] INFO trackwise_backend [4477ce12] DELETE /api/v1/expenses/65211c71-632f-4c34-98f4-0f1469439e28/ → 204 (9ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,094] INFO trackwise_backend [31a4ac4e] PATCH /api/v1/goals/cd6b9bbd-ee1a-4cc0-a8ed-263f8ebe4613/progress/ → 200 (9ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,570] INFO trackwise_backend Password changed for: demo@trackwise.in
+[2026-04-06 06:31:52,571] INFO trackwise_backend [53533b90] POST /api/v1/auth/change-password/ → 200 (476ms) user=demo@trackwise.in
+[2026-04-06 06:31:52,782] INFO trackwise_backend [33ed98cc] DELETE /api/v1/expenses/bulk-delete/ → 200 (8ms) user=demo@trackwise.in
+[2026-04-06 10:39:03,574] INFO trackwise_backend User logged in: demo@trackwise.in
+[2026-04-06 10:45:10,714] INFO trackwise_backend User logged in: demo@trackwise.in

@@ -1,0 +1,14 @@
+# ── Core ──────────────────────────────────────────────────────
+Django==4.2.9
+djangorestframework==3.14.0
+djangorestframework-simplejwt==5.3.1
+
+# ── Auth & Security ───────────────────────────────────────────
+PyJWT==2.8.0
+django-cors-headers==4.3.1
+
+# ── Filtering ─────────────────────────────────────────────────
+django-filter==23.5
+
+# ── Environment ───────────────────────────────────────────────
+python-dotenv==1.0.0
