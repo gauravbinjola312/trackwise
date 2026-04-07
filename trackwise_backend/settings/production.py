@@ -4,6 +4,11 @@ import os
 DEBUG = False
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '').split(',')
 
+# For production, set DJANGO_ALLOWED_HOSTS in your environment to:
+# trackwise-msl5.onrender.com
+# Example .env line:
+# DJANGO_ALLOWED_HOSTS=trackwise-msl5.onrender.com
+
 # ── Database ──────────────────────────────────────────────────
 _db_url = os.environ.get('DATABASE_URL', '')
 if _db_url:
