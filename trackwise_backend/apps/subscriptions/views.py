@@ -211,7 +211,6 @@ class SubscriptionWebhookView(APIView):
             return Response({'status': 'not_found'})
 
         # Process event
-        from datetime import datetime
         amount = None
 
         if event_type in ('subscription.activated', 'subscription.charged'):
