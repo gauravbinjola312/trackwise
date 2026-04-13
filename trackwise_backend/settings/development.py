@@ -11,7 +11,7 @@ DATABASES = {
 }
 
 DEBUG = True
-ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost').split(',')
+ALLOWED_HOSTS = ['*']
 
 # Use SQLite for quick local dev (optional — use Postgres for real dev)
 # DATABASES['default']['ENGINE'] = 'django.db.backends.sqlite3'

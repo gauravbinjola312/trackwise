@@ -243,3 +243,17 @@ LOGGING = {
         'trackwise_backend':{ 'handlers': ['console', 'file'], 'level': 'DEBUG', 'propagate': False },
     },
 }
+
+# ── SMS PROVIDER ──────────────────────────────────────────────
+# Options: 'console' (dev), 'msg91' (Indian SMS), 'twilio'
+SMS_PROVIDER = os.environ.get('SMS_PROVIDER', 'console')
+
+# MSG91 (for Indian SMS)
+MSG91_AUTH_KEY    = os.environ.get('MSG91_AUTH_KEY', '')
+MSG91_SENDER_ID   = os.environ.get('MSG91_SENDER_ID', 'TRKWSE')
+MSG91_TEMPLATE_ID  = os.environ.get('MSG91_TEMPLATE_ID', '')
+
+# Twilio
+TWILIO_ACCOUNT_SID  = os.environ.get('TWILIO_ACCOUNT_SID', '')
+TWILIO_AUTH_TOKEN    = os.environ.get('TWILIO_AUTH_TOKEN', '')
+TWILIO_PHONE_NUMBER  = os.environ.get('TWILIO_PHONE_NUMBER', '')

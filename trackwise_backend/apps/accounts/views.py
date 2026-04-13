@@ -1,14 +1,15 @@
 """
-Auth Views — Full authentication flow.
+Auth Views — 2FA Authentication Flow.
 
-POST   /api/v1/auth/register/          → Create account
-POST   /api/v1/auth/login/             → Login + get tokens
+POST   /api/v1/auth/register/          → Create account + send OTP
+POST   /api/v1/auth/login/             → Validate creds + send OTP
+POST   /api/v1/auth/verify-otp/        → Verify OTP → return JWT tokens
+POST   /api/v1/auth/resend-otp/        → Resend OTP codes
 POST   /api/v1/auth/logout/            → Blacklist refresh token
 POST   /api/v1/auth/token/refresh/     → Get new access token
 POST   /api/v1/auth/change-password/   → Change password (authenticated)
-POST   /api/v1/auth/forgot-password/   → Send password reset email
-POST   /api/v1/auth/reset-password/    → Reset password with token
-POST   /api/v1/auth/verify-email/      → Verify email with token
+POST   /api/v1/auth/forgot-password/   → Send reset OTP
+POST   /api/v1/auth/reset-password/    → Reset password with OTP
 GET    /api/v1/auth/me/                → Get current user info
 PATCH  /api/v1/auth/profile/           → Update profile
 DELETE /api/v1/auth/account/           → Delete account
@@ -17,8 +18,7 @@ import logging
 from datetime import timedelta
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
-from django.core.mail import send_mail
+from django.contrib.auth import get_user_model, authenticate
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -27,43 +27,36 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView
 
-from .models import Profile, EmailVerificationToken
+from .models import Profile, OTP
 from .serializers import (
     RegisterSerializer, LoginSerializer, UserSerializer,
     ChangePasswordSerializer, ForgotPasswordSerializer,
     ResetPasswordSerializer, UpdateProfileSerializer,
 )
 from trackwise_backend.utils.exceptions import UserLimitReachedError
+from trackwise_backend.utils.otp_service import send_otp, verify_otp
 
 User   = get_user_model()
 logger = logging.getLogger('trackwise_backend')
 
 
-# ── REGISTRATION ──────────────────────────────────────────────
+def _jwt_for_user(user):
+    refresh = RefreshToken.for_user(user)
+    return {'access': str(refresh.access_token), 'refresh': str(refresh)}
+
+
+# ── REGISTRATION (Step 1: create account + send OTP) ─────────
 
 class RegisterView(APIView):
     """
     POST /api/v1/auth/register/
-
-    Flow:
-    1. Validate email uniqueness + password strength
-    2. Check user limit (max 500)
-    3. Create User + Profile + Subscription (trial)
-    4. Send verification email
-    5. Return JWT tokens + user info
-
-    Request:
-        { "full_name": "Rahul Sharma", "email": "rahul@example.com",
-          "password": "Secret123!", "password_confirm": "Secret123!" }
-
-    Response 201:
-        { "success": true, "data": { "access": "...", "refresh": "...", "user": {...} } }
+    Body: { full_name, email, phone, password, password_confirm }
+    Response: { otp_required: true, user_id, sent_to: {email, phone} }
     """
     permission_classes = [AllowAny]
     throttle_scope     = 'anon'
 
     def post(self, request):
-        # Enforce user limit
         if User.objects.count() >= settings.MAX_USERS:
             raise UserLimitReachedError()
 
@@ -71,128 +64,193 @@ class RegisterView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Create profile
         Profile.objects.create(user=user)
 
-        # Create subscription (trial)
         from trackwise_backend.apps.subscriptions.models import Subscription
         Subscription.objects.create(
-            user=user,
-            status='trial',
+            user=user, status='trial',
             trial_ends_at=timezone.now() + timedelta(days=settings.TRIAL_PERIOD_DAYS),
         )
 
-        # Send welcome + verification email (async via Celery)
-        self._send_verification_email(user)
+        # Send OTP to email + phone
+        sent_to = send_otp(user, purpose='register')
 
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
-
-        logger.info(f'New user registered: {user.email}')
+        logger.info(f'New user registered (pending OTP): {user.email}')
 
         return Response({
             'success': True,
-            'message': 'Account created successfully. Please verify your email.',
+            'message': 'Account created. Please verify with OTP.',
             'data': {
-                'access':  str(refresh.access_token),
-                'refresh': str(refresh),
-                'user':    UserSerializer(user).data,
+                'otp_required': True,
+                'user_id':      str(user.id),
+                'sent_to':      sent_to,
             }
         }, status=status.HTTP_201_CREATED)
 
-    def _send_verification_email(self, user):
-        try:
-            token = EmailVerificationToken.objects.create(
-                user=user,
-                token_type='verify',
-                expires_at=timezone.now() + timedelta(hours=48),
-            )
-            verify_url = f"{settings.FRONTEND_URL}/verify-email?token={token.id}"
-            send_mail(
-                subject=  'Verify your TrackWise account',
-                message=  f'Click to verify your email:\n\n{verify_url}\n\nLink expires in 48 hours.',
-                from_email= settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=True,
-            )
-        except Exception as e:
-            logger.warning(f'Failed to send verification email to {user.email}: {e}')
 
-
-# ── LOGIN ─────────────────────────────────────────────────────
+# ── LOGIN (Step 1: validate creds + send OTP) ────────────────
 
 class LoginView(APIView):
     """
     POST /api/v1/auth/login/
-
-    Flow:
-    1. Validate credentials
-    2. Check if user is active
-    3. Return JWT access + refresh tokens
-
-    Request:  { "email": "rahul@example.com", "password": "Secret123!" }
-    Response: { "success": true, "data": { "access": "...", "refresh": "...", "user": {...} } }
+    Body: { email, password }
+    Response: { otp_required: true, user_id, sent_to: {email, phone} }
     """
     permission_classes = [AllowAny]
     throttle_scope     = 'anon'
 
     def post(self, request):
-        serializer = LoginSerializer(data=request.data, context={'request': request})
-        serializer.is_valid(raise_exception=True)
+        email    = request.data.get('email', '').lower().strip()
+        password = request.data.get('password', '')
 
-        user = serializer.validated_data['user']
+        if not email or not password:
+            return Response({'success': False, 'error': {'message': 'Email and password are required.'}},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        user = authenticate(request=request, email=email, password=password)
+
+        if not user:
+            return Response({'success': False, 'error': {'message': 'Invalid email or password.'}},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not user.is_active:
+            return Response({'success': False, 'error': {'message': 'This account has been deactivated.'}},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Demo account bypass — skip OTP for testing
+        if email == 'demo@trackwise.in':
+            tokens = _jwt_for_user(user)
+            user.last_login = timezone.now()
+            user.save(update_fields=['last_login'])
+            logger.info(f'Demo user logged in (OTP bypassed): {email}')
+            return Response({
+                'success': True,
+                'data': {**tokens, 'user': UserSerializer(user).data},
+            })
+
+        # Send OTP for normal users
+        sent_to = send_otp(user, purpose='login')
+
+        logger.info(f'Login OTP sent to: {user.email}')
+
+        return Response({
+            'success': True,
+            'message': 'OTP sent. Please verify to complete login.',
+            'data': {
+                'otp_required': True,
+                'user_id':      str(user.id),
+                'sent_to':      sent_to,
+            }
+        })
+
+
+# ── VERIFY OTP (Step 2: verify codes + return tokens) ────────
+
+class VerifyOTPView(APIView):
+    """
+    POST /api/v1/auth/verify-otp/
+    Body: { user_id, email_otp, phone_otp (optional if no phone), purpose }
+    Response: { access, refresh, user }
+    """
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        user_id    = request.data.get('user_id', '')
+        email_otp  = request.data.get('email_otp', '').strip()
+        phone_otp  = request.data.get('phone_otp', '').strip() or None
+        purpose    = request.data.get('purpose', 'login')
+
+        if not user_id or not email_otp:
+            return Response({'success': False, 'error': {'message': 'user_id and email_otp are required.'}},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(id=user_id)
+        except (User.DoesNotExist, Exception):
+            return Response({'success': False, 'error': {'message': 'Invalid user.'}},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        success, error = verify_otp(user, email_otp, phone_otp, purpose)
+
+        if not success:
+            return Response({'success': False, 'error': {'message': error}},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # OTP verified — issue tokens
+        tokens = _jwt_for_user(user)
         user.last_login = timezone.now()
         user.save(update_fields=['last_login'])
 
-        logger.info(f'User logged in: {user.email}')
+        logger.info(f'OTP verified, logged in: {user.email}')
 
         return Response({
             'success': True,
             'data': {
-                'access':  serializer.validated_data['access'],
-                'refresh': serializer.validated_data['refresh'],
-                'user':    UserSerializer(user).data,
+                **tokens,
+                'user': UserSerializer(user).data,
             }
+        })
+
+
+# ── RESEND OTP ────────────────────────────────────────────────
+
+class ResendOTPView(APIView):
+    """
+    POST /api/v1/auth/resend-otp/
+    Body: { user_id, purpose }
+    Rate limited: max 1 per 60 seconds.
+    """
+    permission_classes = [AllowAny]
+    throttle_scope     = 'anon'
+
+    def post(self, request):
+        user_id = request.data.get('user_id', '')
+        purpose = request.data.get('purpose', 'login')
+
+        try:
+            user = User.objects.get(id=user_id)
+        except (User.DoesNotExist, Exception):
+            return Response({'success': False, 'error': {'message': 'Invalid user.'}},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Rate limit: check if OTP was sent in last 60 seconds
+        recent = OTP.objects.filter(
+            user=user, purpose=purpose,
+            created_at__gte=timezone.now() - timedelta(seconds=60)
+        ).exists()
+
+        if recent:
+            return Response({'success': False, 'error': {'message': 'Please wait 60 seconds before requesting a new OTP.'}},
+                            status=status.HTTP_429_TOO_MANY_REQUESTS)
+
+        sent_to = send_otp(user, purpose)
+
+        return Response({
+            'success': True,
+            'message': 'OTP resent.',
+            'data':    {'sent_to': sent_to},
         })
 
 
 # ── LOGOUT ────────────────────────────────────────────────────
 
 class LogoutView(APIView):
-    """
-    POST /api/v1/auth/logout/
-    Blacklists the refresh token, making both tokens invalid.
-
-    Request:  { "refresh": "eyJ..." }
-    Response: { "success": true, "message": "Logged out successfully." }
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         try:
             refresh_token = request.data.get('refresh')
-            if not refresh_token:
-                return Response({'success': False, 'error': {'message': 'Refresh token is required.'}},
-                                status=status.HTTP_400_BAD_REQUEST)
-            token = RefreshToken(refresh_token)
-            token.blacklist()
+            if refresh_token:
+                token = RefreshToken(refresh_token)
+                token.blacklist()
             logger.info(f'User logged out: {request.user.email}')
             return Response({'success': True, 'message': 'Logged out successfully.'})
         except Exception:
-            return Response({'success': True, 'message': 'Logged out.'})  # Treat as success
+            return Response({'success': True, 'message': 'Logged out.'})
 
 
 # ── TOKEN REFRESH ─────────────────────────────────────────────
 
 class CustomTokenRefreshView(TokenRefreshView):
-    """
-    POST /api/v1/auth/token/refresh/
-    Uses SimpleJWT's built-in view, wrapped with our response format.
-
-    Request:  { "refresh": "eyJ..." }
-    Response: { "success": true, "data": { "access": "...", "refresh": "..." } }
-    """
-
     def post(self, request, *args, **kwargs):
         response = super().post(request, *args, **kwargs)
         if response.status_code == 200:
@@ -203,27 +261,15 @@ class CustomTokenRefreshView(TokenRefreshView):
 # ── CURRENT USER ──────────────────────────────────────────────
 
 class MeView(APIView):
-    """
-    GET  /api/v1/auth/me/    → Current user info
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
-        return Response({'success': True, 'data': serializer.data})
+        return Response({'success': True, 'data': UserSerializer(request.user).data})
 
 
 # ── PROFILE UPDATE ────────────────────────────────────────────
 
 class ProfileView(APIView):
-    """
-    PATCH /api/v1/auth/profile/
-
-    Update name, monthly_income, currency, avatar, timezone, notifications.
-
-    Request (all fields optional):
-        { "full_name": "Rahul S", "monthly_income": "80000", "currency": "INR" }
-    """
     permission_classes = [IsAuthenticated]
 
     def patch(self, request):
@@ -231,21 +277,12 @@ class ProfileView(APIView):
         serializer = UpdateProfileSerializer(profile, data=request.data, partial=True, context={'request': request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({
-            'success': True,
-            'message': 'Profile updated.',
-            'data':    UserSerializer(request.user).data,
-        })
+        return Response({'success': True, 'message': 'Profile updated.', 'data': UserSerializer(request.user).data})
 
 
 # ── CHANGE PASSWORD ───────────────────────────────────────────
 
 class ChangePasswordView(APIView):
-    """
-    POST /api/v1/auth/change-password/
-
-    Request: { "current_password": "old", "new_password": "New123!", "new_password_confirm": "New123!" }
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -260,117 +297,61 @@ class ChangePasswordView(APIView):
 # ── FORGOT PASSWORD ───────────────────────────────────────────
 
 class ForgotPasswordView(APIView):
-    """
-    POST /api/v1/auth/forgot-password/
-    Sends a password reset email.
-
-    Request:  { "email": "rahul@example.com" }
-    Response: { "success": true, "message": "Reset link sent if email exists." }
-    (Always returns 200 to prevent email enumeration)
-    """
     permission_classes = [AllowAny]
     throttle_scope     = 'anon'
 
     def post(self, request):
-        serializer = ForgotPasswordSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data['email'].lower()
-
+        email = request.data.get('email', '').lower().strip()
         try:
-            user  = User.objects.get(email=email, is_active=True)
-            token = EmailVerificationToken.objects.create(
-                user=user, token_type='reset',
-                expires_at=timezone.now() + timedelta(hours=2),
-            )
-            reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token.id}"
-            send_mail(
-                subject='Reset your TrackWise password',
-                message=f'Click to reset your password:\n\n{reset_url}\n\nLink expires in 2 hours.',
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=True,
-            )
+            user = User.objects.get(email=email, is_active=True)
+            send_otp(user, purpose='reset')
         except User.DoesNotExist:
             pass  # Don't reveal whether email exists
-
-        return Response({'success': True, 'message': 'If that email exists, a reset link has been sent.'})
+        return Response({'success': True, 'message': 'If that email exists, a reset code has been sent.'})
 
 
 # ── RESET PASSWORD ────────────────────────────────────────────
 
 class ResetPasswordView(APIView):
-    """
-    POST /api/v1/auth/reset-password/
-
-    Request:  { "token": "uuid", "new_password": "New123!", "new_password_confirm": "New123!" }
-    """
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        email     = serializer.validated_data.get('email', '').lower().strip()
+        otp_code  = serializer.validated_data.get('otp_code', '')
+        new_pass  = serializer.validated_data['new_password']
+
         try:
-            token = EmailVerificationToken.objects.get(
-                id=serializer.validated_data['token'],
-                token_type='reset',
-            )
-        except EmailVerificationToken.DoesNotExist:
-            return Response({'success': False, 'error': {'message': 'Invalid or expired token.'}},
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({'success': False, 'error': {'message': 'Invalid email.'}},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        if not token.is_valid():
-            return Response({'success': False, 'error': {'message': 'Token has expired or already been used.'}},
+        success, error = verify_otp(user, otp_code, purpose='reset')
+        if not success:
+            return Response({'success': False, 'error': {'message': error}},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        token.user.set_password(serializer.validated_data['new_password'])
-        token.user.save()
-        token.is_used = True
-        token.save()
-
-        logger.info(f'Password reset for: {token.user.email}')
+        user.set_password(new_pass)
+        user.save()
+        logger.info(f'Password reset for: {user.email}')
         return Response({'success': True, 'message': 'Password reset successfully. You can now login.'})
 
 
-# ── EMAIL VERIFICATION ────────────────────────────────────────
+# ── VERIFY EMAIL (legacy — now handled by OTP) ───────────────
 
 class VerifyEmailView(APIView):
-    """
-    POST /api/v1/auth/verify-email/
-    Request: { "token": "uuid" }
-    """
     permission_classes = [AllowAny]
 
     def post(self, request):
-        token_id = request.data.get('token')
-        try:
-            token = EmailVerificationToken.objects.select_related('user').get(
-                id=token_id, token_type='verify'
-            )
-        except (EmailVerificationToken.DoesNotExist, Exception):
-            return Response({'success': False, 'error': {'message': 'Invalid verification token.'}},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        if not token.is_valid():
-            return Response({'success': False, 'error': {'message': 'Token expired or already used.'}},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        token.user.is_email_verified = True
-        token.user.save(update_fields=['is_email_verified'])
-        token.is_used = True
-        token.save()
-
-        return Response({'success': True, 'message': 'Email verified successfully.'})
+        return Response({'success': True, 'message': 'Use /verify-otp/ endpoint for verification.'})
 
 
 # ── DELETE ACCOUNT ────────────────────────────────────────────
 
 class DeleteAccountView(APIView):
-    """
-    DELETE /api/v1/auth/account/
-    Soft-deletes (deactivates) the account.
-    Request: { "password": "current_password" }
-    """
     permission_classes = [IsAuthenticated]
 
     def delete(self, request):
@@ -380,7 +361,7 @@ class DeleteAccountView(APIView):
                             status=status.HTTP_400_BAD_REQUEST)
         user = request.user
         user.is_active = False
-        user.email     = f'deleted_{user.id}@deleted.trackwise'  # Free up email
+        user.email = f'deleted_{user.id}@deleted.trackwise'
         user.save()
         logger.info(f'Account deleted: {user.id}')
         return Response({'success': True, 'message': 'Account deleted.'}, status=status.HTTP_204_NO_CONTENT)

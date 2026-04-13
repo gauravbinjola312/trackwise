@@ -40,9 +40,12 @@ X_FRAME_OPTIONS                = 'DENY'
 SECURE_SSL_REDIRECT            = False
 
 # ── CORS ──────────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = os.environ.get(
-    'CORS_ALLOWED_ORIGINS', ''
-).split(',')
+_cors = os.environ.get('CORS_ALLOWED_ORIGINS', '')
+if _cors.strip() == '*':
+    CORS_ALLOW_ALL_ORIGINS = True
+    CORS_ALLOWED_ORIGINS = []
+else:
+    CORS_ALLOWED_ORIGINS = [o.strip() for o in _cors.split(',') if o.strip()]
 CORS_ALLOW_CREDENTIALS = True
 
 # ── Sentry (optional) ────────────────────────────────────────

@@ -33,3 +33,33 @@
 [2026-04-06 06:31:52,782] INFO trackwise_backend [33ed98cc] DELETE /api/v1/expenses/bulk-delete/ → 200 (8ms) user=demo@trackwise.in
 [2026-04-06 10:39:03,574] INFO trackwise_backend User logged in: demo@trackwise.in
 [2026-04-06 10:45:10,714] INFO trackwise_backend User logged in: demo@trackwise.in
+[2026-04-10 09:19:23,956] INFO trackwise_backend OTP sent to email: rahul@test.com (register)
+[2026-04-10 09:19:23,964] INFO trackwise_backend [SMS-CONSOLE] OTP for 9876543210: 900122
+[2026-04-10 09:19:23,964] INFO trackwise_backend OTP sent to phone: ******3210 (register)
+[2026-04-10 09:19:23,964] INFO trackwise_backend New user registered (pending OTP): rahul@test.com
+[2026-04-10 09:19:23,965] INFO trackwise_backend [75eca6b0] POST /api/v1/auth/register/ → 201 (474ms) user=anon
+[2026-04-10 09:19:24,071] INFO trackwise_backend OTP verified, logged in: rahul@test.com
+[2026-04-10 09:19:24,074] INFO trackwise_backend [1adf8551] POST /api/v1/auth/verify-otp/ → 200 (105ms) user=anon
+[2026-04-10 09:19:24,285] INFO trackwise_backend OTP sent to email: rahul@test.com (login)
+[2026-04-10 09:19:24,293] INFO trackwise_backend [SMS-CONSOLE] OTP for 9876543210: 496698
+[2026-04-10 09:19:24,294] INFO trackwise_backend OTP sent to phone: ******3210 (login)
+[2026-04-10 09:19:24,294] INFO trackwise_backend Login OTP sent to: rahul@test.com
+[2026-04-10 09:19:24,294] INFO trackwise_backend [3d99d025] POST /api/v1/auth/login/ → 200 (220ms) user=anon
+[2026-04-10 09:19:24,335] INFO trackwise_backend OTP verified, logged in: rahul@test.com
+[2026-04-10 09:19:24,337] INFO trackwise_backend [638e236c] POST /api/v1/auth/verify-otp/ → 200 (40ms) user=anon
+[2026-04-10 09:19:24,542] INFO trackwise_backend OTP sent to email: nophone@test.com (register)
+[2026-04-10 09:19:24,542] INFO trackwise_backend New user registered (pending OTP): nophone@test.com
+[2026-04-10 09:19:24,542] INFO trackwise_backend [de06b1bf] POST /api/v1/auth/register/ → 201 (204ms) user=anon
+[2026-04-10 09:19:24,577] INFO trackwise_backend OTP verified, logged in: nophone@test.com
+[2026-04-10 09:19:24,579] INFO trackwise_backend [d2d30d96] POST /api/v1/auth/verify-otp/ → 200 (35ms) user=anon
+[2026-04-10 09:19:24,765] INFO trackwise_backend OTP sent to email: rahul@test.com (login)
+[2026-04-10 09:19:24,772] INFO trackwise_backend [SMS-CONSOLE] OTP for 9876543210: 695737
+[2026-04-10 09:19:24,773] INFO trackwise_backend OTP sent to phone: ******3210 (login)
+[2026-04-10 09:19:24,773] INFO trackwise_backend Login OTP sent to: rahul@test.com
+[2026-04-10 09:19:24,773] INFO trackwise_backend [7a42b61f] POST /api/v1/auth/login/ → 200 (193ms) user=anon
+[2026-04-10 09:19:24,785] INFO trackwise_backend [b8a31ffd] POST /api/v1/auth/verify-otp/ → 400 (11ms) user=anon
+[2026-04-10 19:03:53,812] INFO trackwise_backend Demo user logged in (OTP bypassed): demo@trackwise.in
+[2026-04-10 19:03:53,817] INFO trackwise_backend [c40ad841] POST /api/v1/auth/login/ → 200 (419ms) user=anon
+[2026-04-10 19:03:53,831] INFO trackwise_backend [2168ba2d] GET /api/v1/dashboard/ → 200 (13ms) user=demo@trackwise.in
+[2026-04-10 19:03:53,839] INFO trackwise_backend [b618ab1c] GET /api/v1/expenses/ → 200 (6ms) user=demo@trackwise.in
+[2026-04-10 19:03:53,846] INFO trackwise_backend [a3693654] GET /api/v1/goals/ → 200 (5ms) user=demo@trackwise.in
